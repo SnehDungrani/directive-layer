@@ -138,10 +138,15 @@ Run the installer once. It sets up Directive globally so it works in **all your 
 
 ### ⚡ One-Click Installer (Windows)
 
-1. Clone or download the `directive-layer` repo
-2. In a terminal: `.\install.ps1` (or right-click `install.ps1` → **Run with PowerShell**)
-3. When prompted, enter which IDE(s) you use (e.g. `1,2,3` or `all`)
-4. Restart your IDE(s) if prompted (Cursor doesn't require restart)
+Copy and run in PowerShell (clone + install in one go):
+
+```powershell
+git clone https://github.com/SnehDungrani/directive-layer.git
+cd directive-layer
+.\install.ps1
+```
+
+When prompted, enter which IDE(s) you use (e.g. `1,2,3` or `all`). Restart your IDE(s) if the installer says so (Cursor doesn't require restart).
 
 **What the installer does:**
 - **Always:** Installs the skill to `~/.agent/skills/directive/SKILL.md`
@@ -156,10 +161,16 @@ All options are fully automated — no copy/paste needed.
 
 ### For Mac / Linux
 
+Copy and run in terminal (clone + install in one go):
+
 ```bash
+git clone https://github.com/SnehDungrani/directive-layer.git
+cd directive-layer
 chmod +x install.sh
 ./install.sh
 ```
+
+When prompted, enter which IDE(s) you use (e.g. `1,2,3` or `all`).
 
 ---
 
