@@ -1,69 +1,69 @@
 # ⚡ Directive — global prompt protocol
 
-> **A global prompt control layer that prepends engineering constraints before inference.**
+> **A global prompt refinement layer: classify intent, apply the right techniques, then answer.**
 
 ---
 
 ## What Is This?
 
-**Directive** is a prompt control layer that standardizes inputs before they reach the inference model. It operates as an always-on middleware within the IDE, establishing a baseline engineering protocol to reduce ambiguity and enforce output structure.
+**Directive** is a prompt control layer that refines user prompts before the model answers. It runs inside your IDE: the model classifies each query (factual, analytical, code, generative, etc.), applies only the techniques that fit that type, then responds. Simple queries get no extra structure; complex ones get the right constraints and format.
 
-The system is model-agnostic and designed for infrastructure-level consistency.
+The system is model-agnostic and works with any IDE that can load a system prompt or skill file.
 
-**Mission:** Shift prompt engineering from a user-time cognitive load to a system-time architectural guarantee.
+**Mission:** Move prompt engineering into the system layer — the right structure when needed, without burdening every question.
 
 ---
 
 ## Architecture
 
-Directive functions as a **System Prompt Injection Layer**. It does not intercept network traffic or act as a binary middleware. Instead, it leverages the `system` or `pre-prompt` capabilities of your AI tool to prepend a structured engineering protocol to the context window.
+Directive functions as a **System Prompt Injection Layer**. It does not intercept network traffic or act as a binary middleware. Instead, it leverages the `system` or `pre-prompt` capabilities of your AI tool to prepend a structured protocol to the context window.
 
 When a prompt is submitted:
-1.  **Context Loading**: The AI tool reads the `SKILL.md` content via its configured system prompt file (e.g., `GEMINI.md`, `~/.cursor/skills/directive/SKILL.md`, `rules.md`).
-2.  **Instruction Injection**: The Directive protocol is inserted into the context window *before* the user's prompt.
-3.  **In-Context Learning**: The LLM adheres to the injected protocol to process the subsequent user input.
-4.  **Structured Generation**: The model generates a response that follows the 8-step engineering format defined in the protocol.
+1.  **Context Loading**: The AI tool reads [`SKILL.md`](./SKILL.md) via its configured system prompt file (e.g. `GEMINI.md`, `~/.cursor/skills/directive/SKILL.md`, `rules.md`).
+2.  **Intent Classification**: The protocol classifies the query (FACTUAL, ANALYTICAL, GENERATIVE, CODE, MULTI-STEP, EXTERNAL-CONTENT, CONVERSATIONAL).
+3.  **Technique Routing**: Only the techniques that fit the query type are applied — not all eight on every prompt. FACTUAL and CONVERSATIONAL are answered directly with no technique bloat.
+4.  **Refinement & Response**: The model refines the prompt internally, outputs `Directive applied`, then answers using the refined approach.
 
-This ensures that every query is processed through a rigorous engineering framework without requiring a proxy server or browser extension.
+This keeps quality high without over-applying structure to simple queries.
 
 ## Flow Architecture
-
-The following diagram illustrates the injection process:
 
 ```
 [System Context]
    └── Injected: DIRECTIVE_PROTOCOL (from SKILL.md)
-       ├── Engineering Constraints
-       ├── Output Format (XML)
-       └── Validation Loop
+       ├── Step 0: Intent Classification
+       ├── Routing Table (which techniques per query type)
+       └── The 8 Techniques (applied selectively)
 
 [User Input]
-   └── "Write a Python script to..."
+   └── "Write a Python script to..."  → classified as CODE
 
 [LLM Context Window]
    ├── [System] DIRECTIVE_PROTOCOL
    ├── [User] Original Prompt
-   └── [Assistant] "Directive applied" (Verification Signal)
-       └── [Assistant] <thinking> ... </thinking>
-       └── [Assistant] <answer> ... </answer>
+   └── [Assistant] "Directive applied"
+       └── [Assistant] <thinking> ... </thinking> (if applicable)
+       └── [Assistant] [answer]
 ```
 
 ---
 
 ## Injection Protocol
 
-The skill enforces the following constraints via in-context instructions (defined in [`SKILL.md`](./SKILL.md)):
+The skill is defined in [`SKILL.md`](./SKILL.md). It uses **intent-based routing**: the model classifies the query first, then applies only the techniques that improve that type of prompt.
 
-| Technique | Implementation | Guarantee |
+| Technique | When it applies | What it does |
 | :--- | :--- | :--- |
-| **Negative Constraints** | `system` instructions forbidding specific patterns. | Reduces hallucination by explicitly defining out-of-bounds behavior. |
-| **Chain of Thought** | Mandatory `<thinking>` tags in output schema. | Exposes logic errors in the reasoning trace before the final answer is committed. |
-| **Structured Output** | XML-delimited response format (`<answer>`, `<code>`). | Ensures outputs are machine-parseable and consistent across different models. |
-| **Reasoning Wrappers** | `INPUT` → `REASONING` → `OUTPUT` few-shot examples. | Aligns output quality with standard reasoning patterns. |
-| **System/User Separation** | Explicit delimiter strategies in prompt structure. | Mitigates prompt injection and contextual drift. |
-| **Task Classification** | Heuristic instructions to adopt specific personas. | Aligns tone and depth with the nature of the request. |
-| **Step Chaining** | Sequential processing instructions. | Prevents instruction skipping in multi-part requests. |
-| **Self-Correction** | A pre-output validation checklist. | Forces the model to review its own output against constraints. |
+| **1. Negative Constraints** | Analytical, generative, code, multi-step, external content | Converts vague instructions into specific, testable "never" constraints. |
+| **2. Chain of Thought** | Analytical, code, multi-step | Adds reasoning-before-answer; `<thinking>` then final answer. |
+| **3. Structured Output** | Analytical, code, multi-step | Enforces XML-style format (`<answer>`, `<main_point>`, etc.). |
+| **4. Few-Shot with Reasoning** | Generative, code | INPUT → REASONING → OUTPUT examples so the model learns why, not just what. |
+| **5. System/User Separation** | External content | Keeps instructions separate from user-supplied text to reduce prompt injection. |
+| **6. Temperature Advisory** | Analytical, generative, code, multi-step | Adds a comment for the *caller* (API/user) recommending temperature by task type. |
+| **7. Prompt Chaining** | Multi-step | Breaks "do A and then B" into numbered steps with clear inputs/outputs. |
+| **8. Validation Loop** | Analytical, generative, code, multi-step | Self-check before output: address all points, no contradictions, format match. |
+
+**FACTUAL and CONVERSATIONAL:** No techniques applied; the model answers directly to avoid noise.
 
 ## Technical Implementation Details
 
@@ -76,19 +76,19 @@ Since Directive functions by prepending instructions, it consumes context tokens
 
 ### Failure Modes & Verification
 
-Directive relies on the model adhering to the injected protocol.
-1. **Verification Signal:** The protocol explicitly instructs the model to output `Directive applied` as its very first line.
-   - *Note: This is a probabilistic instruction, not a hardcoded system output. Extremely capable models (e.g., Claude 3.5 Sonnet, GPT-4o) follow it reliably. Smaller or older models may occasionally skip it.*
+Directive relies on the model following the protocol in `SKILL.md`.
+1. **Verification Signal:** The protocol asks the model to output `Directive applied` then `------------------` before the answer.
+   - *Note: This is a probabilistic instruction. Strong models follow it reliably; smaller or older models may sometimes skip it.*
 2. **Missing Signal:** If `Directive applied` is absent:
-   - **Cause:** `SKILL.md` content was not successfully injected (file path error).
-   - **Cause:** Context window truncation dropped the system prompt.
-   - **Cause:** Provider sanitization removed custom system instructions.
+   - **Cause:** `SKILL.md` was not injected (wrong path or not loaded).
+   - **Cause:** Context truncation dropped the system prompt.
+   - **Cause:** Provider sanitization stripped custom instructions.
 
 ### Multi-turn & Agentic Behavior
-In multi-turn conversations or agent loops (e.g., Bolt.new, Windsurf Cascade):
-- **Persistence:** The system prompt typically persists across the entire session.
-- **Re-injection:** Some stateless agentic tools re-inject the system prompt on every turn, incurring the input token cost repeatedly.
-- **Idempotency:** The protocol is designed to be idempotent; re-reading it does not alter state, but repeated verification lines (`Directive applied`) may appear if the agent treats every turn as a fresh start.
+In multi-turn or agent loops (e.g. Windsurf Cascade):
+- **Persistence:** The system prompt usually persists for the session.
+- **Re-injection:** Some tools re-inject the prompt every turn, which repeats token cost.
+- **Idempotency:** The protocol is idempotent; re-reading it does not change state. You may see `Directive applied` on each turn if the agent starts fresh each time.
 
 ### Local vs. Cloud Processing
 The term "local" applies only to the *source* of the instruction file.
@@ -176,14 +176,15 @@ When prompted, enter which IDE(s) you use (e.g. `1,2,3` or `all`).
 
 ## Temperature Reference Card
 
-*Note: Values are normalized for 0.0–1.0 ranges. For API-specific ranges (e.g., 0-2), scale accordingly.*
+The skill adds a **temperature advisory** (a comment for the caller) when relevant; the model cannot set API temperature itself. Recommended ranges (normalized 0–1; scale for API-specific ranges):
 
-| Task Type | Temperature | Use When |
-|---|---|---|
-| Code generation | **0.1 - 0.2** | Writing functions, debugging, refactoring (Strict) |
-| Analysis / factual | **0.3 - 0.5** | Research, explanations, summaries (Balanced) |
-| Creative writing | **0.7 - 0.9** | Stories, marketing copy, creative content (Expressive) |
-| Brainstorming | **0.8 - 1.0** | Idea generation, business ideas, innovation (Max Exploration) |
+| Task Type | Recommended Temperature | Use When |
+|-----------|--------------------------|----------|
+| Factual / analysis | **0.2 – 0.4** | Lookups, explanations, summaries |
+| Code generation | **0.1 – 0.3** | Writing or debugging code |
+| Balanced explanation | **0.5 – 0.7** | Tutorials, how-tos |
+| Creative writing | **0.8 – 1.0** | Stories, marketing, varied tone |
+| Brainstorming | **1.0 – 1.2** | Ideation, exploration |
 
 ---
 
@@ -210,12 +211,12 @@ To modify the core protocol:
 
 **Author:** Sneh Dungrani
 
-Directive — its structure, packaging, global installation architecture, and IDE integration system — is an original work by Sneh Dungrani. No identical implementation exists publicly.
+Directive — intent classification, technique routing, packaging, global install, and IDE integration — is an original work by Sneh Dungrani. No identical implementation exists publicly.
 
 **Techniques based on:**
-- Anthropic's Constitutional AI research (negative constraints, hallucination reduction)
-- OpenAI's chain-of-thought prompt engineering practices
-- Production AI system validation loop patterns
+- Anthropic Constitutional AI and prompting docs (negative constraints, hallucination reduction)
+- Chain-of-thought prompting (Wei et al.; OpenAI prompt engineering practices)
+- Production AI validation loop patterns
 
 ---
 
