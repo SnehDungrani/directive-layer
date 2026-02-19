@@ -22,6 +22,14 @@ All notable changes to **Directive** are documented here.
   - `templates/cursor-rules.md` now matches the updated `SKILL.md` content.
   - Other templates (`GEMINI-patch.md`, `windsurf-rules.md`, `vscode-copilot-instructions.md`) remain compatible with the new behavior.
 
+### README clarification
+
+- Rewrote the **What Is This?** section to clearly explain Directive is a **behavior layer**, not a pre-processor.
+- Updated **Architecture** section: now explicitly lists what Directive does and does not change.
+- Replaced the flow diagram with a clearer 3-box representation showing what gets sent to the model, what happens inside, and what you see.
+- Updated technique descriptions to reflect that tags/reasoning are internal only — you see clean markdown output.
+- Bumped version to 1.3.
+
 ### Notes
 
 - Existing global installs can be updated by re-running `install.ps1` / `install.sh`, or by copying the new `templates/cursor-rules.md` content into the Cursor skill UI.
