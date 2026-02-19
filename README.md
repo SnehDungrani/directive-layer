@@ -1,12 +1,29 @@
 # ⚡ Directive — global prompt protocol
 
-> **A global prompt refinement layer: classify intent, apply the right techniques, then answer.**
+> **A behavior layer that guides how the model reasons and responds — not a pre-processor.**
 
 ---
 
 ## What Is This?
 
-**Directive** is a prompt control layer that refines user prompts before the model answers. It runs inside your IDE: the model classifies each query (factual, analytical, code, generative, etc.), applies only the techniques that fit that type, then responds. Simple queries get no extra structure; complex ones get the right constraints and format.
+**Directive** is a system-level behavior layer that changes **how** the model reasons and answers once your raw prompt is inside the context. It does **not** pre-edit or rewrite your prompt before it reaches the model.
+
+When you use Directive, Cursor sends **two things** to the model:
+1. `SKILL.md` as a **system / skill prompt** (the rules).
+2. Your **raw user prompt** exactly as you typed it.
+
+The model reads the skill first, then:
+1. **Classifies** your prompt (FACTUAL / ANALYTICAL / GENERATIVE / CODE / etc.).
+2. **Cleans it up internally** (fixes typos, clarifies if needed, rewrites as a clear task).
+3. **Applies only the relevant techniques** (negative constraints, structure, validation, etc.) **inside its own reasoning**.
+4. **Generates the final answer** directly.
+
+The refined prompt is built internally and used by the model to think, but it's **not shown** in the response. You just see:
+```
+Directive applied
+------------------
+[answer...]
+```
 
 The system is model-agnostic and works with any IDE that can load a system prompt or skill file.
 
@@ -16,47 +33,72 @@ The system is model-agnostic and works with any IDE that can load a system promp
 
 ## Architecture
 
-Directive functions as a **System Prompt Injection Layer**. It does not intercept network traffic or act as a binary middleware. Instead, it leverages the `system` or `pre-prompt` capabilities of your AI tool to prepend a structured protocol to the context window.
+Directive functions as a **Behavior Layer**, not a pre-processor. It does not intercept, rewrite, or transform your prompt before it reaches the model. Instead, it leverages the `system` or `pre-prompt` capabilities of your AI tool to prepend behavioral instructions to the context window.
+
+**What Directive does NOT change:**
+- The underlying model weights (Sonnet/Opus/etc.).
+- Cursor's tool-calling engine (file reads, edits, tests) — those are still decided by the model, just under the skill's guidance.
+- Any low-level "reasoning algorithm" — it's still the same LLM, just with a stronger system prompt.
+
+**What Directive does change:**
+- Forces input cleanup and typo correction.
+- Forces more structured, sectioned answers for ANALYTICAL / framework / strategy queries.
+- Forces internal validation before answering.
+- Forbids raw XML/HTML tags in visible output.
+- For framework/guide/methodology prompts, forces full coverage (objective, variables, uncertainty, constraints, trade-offs, process, implementation options, pitfalls, checklist).
 
 When a prompt is submitted:
 1.  **Context Loading**: The AI tool reads [`SKILL.md`](./SKILL.md) via its configured system prompt file (e.g. `GEMINI.md`, `~/.cursor/skills/directive/SKILL.md`, `rules.md`).
-2.  **Intent Classification**: The protocol classifies the query (FACTUAL, ANALYTICAL, GENERATIVE, CODE, MULTI-STEP, EXTERNAL-CONTENT, CONVERSATIONAL).
+2.  **Intent Classification**: The model classifies the query (FACTUAL, ANALYTICAL, GENERATIVE, CODE, MULTI-STEP, EXTERNAL-CONTENT, CONVERSATIONAL).
 3.  **Technique Routing**: Only the techniques that fit the query type are applied — not all eight on every prompt. FACTUAL and CONVERSATIONAL are answered directly with no technique bloat.
-4.  **Refinement & Response**: The model refines the prompt internally, outputs `Directive applied`, then answers using the refined approach.
+4.  **Internal Refinement & Response**: The model refines the prompt internally (you don't see this), outputs `Directive applied`, then answers using the refined approach.
 
 This keeps quality high without over-applying structure to simple queries.
 
 ## Flow Architecture
 
 ```
-[System Context]
-   └── Injected: DIRECTIVE_PROTOCOL (from SKILL.md)
-       ├── Step 0: Intent Classification
-       ├── Routing Table (which techniques per query type)
-       └── The 8 Techniques (applied selectively)
-
-[User Input]
-   └── "Write a Python script to..."  → classified as CODE
-
-[LLM Context Window]
-   ├── [System] DIRECTIVE_PROTOCOL
-   ├── [User] Original Prompt
-   └── [Assistant] "Directive applied"
-       └── [Assistant] <thinking> ... </thinking> (if applicable)
-       └── [Assistant] [answer]
+┌─────────────────────────────────────────────────────────────────┐
+│                     What gets sent to the model                 │
+├─────────────────────────────────────────────────────────────────┤
+│  [System Prompt]   SKILL.md (behavioral instructions)           │
+│  [User Prompt]     Your raw input, exactly as typed             │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                  What happens inside the model                  │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Read SKILL.md instructions                                  │
+│  2. Classify intent (FACTUAL / ANALYTICAL / CODE / etc.)        │
+│  3. Clean up input internally (fix typos, clarify)              │
+│  4. Build refined prompt internally (not shown to you)          │
+│  5. Apply relevant techniques in reasoning                      │
+│  6. Validate before output                                      │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                      What you see                               │
+├─────────────────────────────────────────────────────────────────┤
+│  Directive applied                                              │
+│  ------------------                                             │
+│  [answer in clean markdown/prose, no tags]                      │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+**Without** the skill: Cursor just answers based on its built-in system prompt + your raw message.
+**With** `SKILL.md`: the model **must** first follow your intent classification, input cleanup, routing, structure, and validation rules **before** it decides how to respond.
 
 ---
 
-## Injection Protocol
+## Technique Routing
 
-The skill is defined in [`SKILL.md`](./SKILL.md). It uses **intent-based routing**: the model classifies the query first, then applies only the techniques that improve that type of prompt.
+The skill is defined in [`SKILL.md`](./SKILL.md). It uses **intent-based routing**: the model classifies the query first (internally), then applies only the techniques that improve that type of prompt. This all happens inside the model's reasoning — you just see the final answer.
 
 | Technique | When it applies | What it does |
 | :--- | :--- | :--- |
 | **1. Negative Constraints** | Analytical, generative, code, multi-step, external content | Converts vague instructions into specific, testable "never" constraints. |
-| **2. Chain of Thought** | Analytical, code, multi-step | Adds reasoning-before-answer; `<thinking>` then final answer. |
-| **3. Structured Output** | Analytical, code, multi-step | Enforces XML-style format (`<answer>`, `<main_point>`, etc.). |
+| **2. Chain of Thought** | Analytical, code, multi-step | Forces reasoning-before-answer internally; you only see the final clean answer. |
+| **3. Structured Output** | Analytical, code, multi-step | Enforces clear structure (headings, sections, lists) — markdown for IDE/chat, XML only for API output. |
 | **4. Few-Shot with Reasoning** | Generative, code | INPUT → REASONING → OUTPUT examples so the model learns why, not just what. |
 | **5. System/User Separation** | External content | Keeps instructions separate from user-supplied text to reduce prompt injection. |
 | **6. Temperature Advisory** | Analytical, generative, code, multi-step | Adds a comment for the *caller* (API/user) recommending temperature by task type. |
@@ -68,11 +110,11 @@ The skill is defined in [`SKILL.md`](./SKILL.md). It uses **intent-based routing
 ## Technical Implementation Details
 
 ### Token Overhead & Budget
-Since Directive functions by prepending instructions, it consumes context tokens for every request.
+Since Directive functions by prepending behavioral instructions, it consumes context tokens for every request.
 - **Input Overhead:** ~800-1000 tokens (fixed cost per extensive system prompt).
 - **Context Limits:** If the model's context window is full, the system prompt may be truncated by the provider. This results in a silent failure where Directive is not applied.
 - **Latency Impact:** Negligible for `flash` models; slight increase for `pro` models due to increased input processing.
-- **Output Overhead:** Variable. The `<thinking>` blocks add to generation time but are often collapsed in agentic UIs.
+- **Output Overhead:** Minimal. The refined prompt and internal reasoning are not shown to you — only the final clean answer.
 
 ### Failure Modes & Verification
 
@@ -221,5 +263,5 @@ Directive — intent classification, technique routing, packaging, global instal
 ---
 
 *Directive — global prompt protocol*  
-*Author: Sneh Dungrani | Version: 1.2 | February 2026*  
+*Author: Sneh Dungrani | Version: 1.3 | February 2026*  
 *Repo: [directive-layer](https://github.com/SnehDungrani/directive-layer)*
