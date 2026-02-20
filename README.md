@@ -48,7 +48,7 @@ Directive functions as a **Behavior Layer**, not a pre-processor. It does not in
 - For framework/guide/methodology prompts, forces full coverage (objective, variables, uncertainty, constraints, trade-offs, process, implementation options, pitfalls, checklist).
 
 When a prompt is submitted:
-1.  **Context Loading**: The AI tool reads [`SKILL.md`](./SKILL.md) via its configured system prompt file (e.g. `GEMINI.md`, `~/.cursor/skills/directive/SKILL.md`, `rules.md`).
+1.  **Context Loading**: The AI tool reads [`SKILL.md`](./SKILL.md) via its configured system prompt file (e.g. `GEMINI.md` on Windows: `%USERPROFILE%\.gemini\GEMINI.md`, Cursor: `~/.cursor/skills/directive/SKILL.md` or `%USERPROFILE%\.cursor\skills\directive\SKILL.md`, Windsurf: `rules.md`).
 2.  **Intent Classification**: The model classifies the query (FACTUAL, ANALYTICAL, GENERATIVE, CODE, MULTI-STEP, EXTERNAL-CONTENT, CONVERSATIONAL).
 3.  **Technique Routing**: Only the techniques that fit the query type are applied — not all eight on every prompt. FACTUAL and CONVERSATIONAL are answered directly with no technique bloat.
 4.  **Internal Refinement & Response**: The model refines the prompt internally (you don't see this), outputs `Directive applied`, then answers using the refined approach.
@@ -222,11 +222,11 @@ The skill adds a **temperature advisory** (a comment for the caller) when releva
 
 | Task Type | Recommended Temperature | Use When |
 |-----------|--------------------------|----------|
-| Factual / analysis | **0.2 – 0.4** | Lookups, explanations, summaries |
-| Code generation | **0.1 – 0.3** | Writing or debugging code |
+| Factual / analysis | **0.3** | Lookups, explanations, summaries |
+| Code generation | **0.2** | Writing or debugging code |
 | Balanced explanation | **0.5 – 0.7** | Tutorials, how-tos |
-| Creative writing | **0.8 – 1.0** | Stories, marketing, varied tone |
-| Brainstorming | **1.0 – 1.2** | Ideation, exploration |
+| Creative writing | **0.9** | Stories, marketing, varied tone |
+| Brainstorming | **1.2** | Ideation, exploration |
 
 ---
 
