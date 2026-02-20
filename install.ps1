@@ -89,8 +89,24 @@ Write-Host "  Skill: $agentDir" -ForegroundColor Green
 
 # 2. Antigravity (GEMINI.md) - auto, no paste
 if ($choices -contains 1) {
+    $geminiDir = Split-Path -Parent $geminiMd
+    if (-not (Test-Path $geminiDir)) {
+        try {
+            New-Item -ItemType Directory -Force -Path $geminiDir | Out-Null
+        } catch {
+            Write-Host "  Antigravity: Failed to create directory $geminiDir" -ForegroundColor Red
+            Write-Host "    Error: $_" -ForegroundColor Gray
+            continue
+        }
+    }
     if (-not (Test-Path $geminiMd)) {
-        New-Item -ItemType File -Force -Path $geminiMd -Value "# Global AI Config" | Out-Null
+        try {
+            New-Item -ItemType File -Force -Path $geminiMd -Value "# Global AI Config" | Out-Null
+        } catch {
+            Write-Host "  Antigravity: Failed to create GEMINI.md file" -ForegroundColor Red
+            Write-Host "    Error: $_" -ForegroundColor Gray
+            continue
+        }
     }
     $content = Get-Content -Path $geminiMd -Raw -ErrorAction SilentlyContinue
     if ($content -notmatch "Directive applied") {
@@ -101,7 +117,7 @@ if ($choices -contains 1) {
             "**CRITICAL RULE - Apply to EVERY prompt received, no exceptions:**" + $nl + $nl +
             "Before answering any user prompt, you MUST:" + $nl + $nl +
             "1. Read the skill file at: $env:USERPROFILE\.agent\skills\directive\SKILL.md" + $nl +
-            "2. Apply all relevant techniques from that skill to refine the prompt internally (do NOT show the analysis, techniques, raw prompt, or refined prompt to the user)" + $nl +
+            "2. Classify the prompt intent (FACTUAL, ANALYTICAL, GENERATIVE, CODE, MULTI-STEP, EXTERNAL-CONTENT, CONVERSATIONAL) and apply only the relevant techniques from that skill to refine the prompt internally (do NOT show the analysis, techniques, raw prompt, or refined prompt to the user)" + $nl +
             "3. Output exactly this one line - nothing more, nothing less:" + $nl +
             '   ```' + $nl +
             "   Directive applied" + $nl +
@@ -109,8 +125,13 @@ if ($choices -contains 1) {
             '   ```' + $nl +
             "4. Then immediately respond with the answer using the refined prompt - never the raw one" + $nl + $nl +
             "**This applies to every single prompt in every project. No exceptions.**" + $nl
-        Add-Content -Path $geminiMd -Value $block
-        Write-Host "  Antigravity: configured (restart Antigravity to apply)." -ForegroundColor Green
+        try {
+            Add-Content -Path $geminiMd -Value $block
+            Write-Host "  Antigravity: configured (restart Antigravity to apply)." -ForegroundColor Green
+        } catch {
+            Write-Host "  Antigravity: Failed to write configuration" -ForegroundColor Red
+            Write-Host "    Error: $_" -ForegroundColor Gray
+        }
     } else {
         Write-Host "  Antigravity: already configured." -ForegroundColor Green
     }
@@ -120,18 +141,25 @@ if ($choices -contains 1) {
 if ($choices -contains 2) {
     $cursorSkillsDir = Join-Path $env:USERPROFILE ".cursor\skills\directive"
     $folderExisted = Test-Path $cursorSkillsDir
-    if (-not $folderExisted) { New-Item -ItemType Directory -Force -Path $cursorSkillsDir | Out-Null }
-    $cursorSkillPath = Join-Path $cursorSkillsDir "SKILL.md"
-    Copy-Item -Force $skillSrc $cursorSkillPath
-    
-    Write-Host "  Cursor: Directive skill installed at $cursorSkillPath" -ForegroundColor Green
-    
-    if (-not $folderExisted) {
-        Write-Host ""
-        Write-Host "  Next steps:" -ForegroundColor Cyan
-        Write-Host "  1. Verify the skill appears in Cursor Settings > Rules, Skills, Subagents > Skills" -ForegroundColor White
-        Write-Host "  2. Use '/directive' in chat to invoke, or it may auto-invoke when relevant" -ForegroundColor White
-        Write-Host ""
+    try {
+        if (-not $folderExisted) { 
+            New-Item -ItemType Directory -Force -Path $cursorSkillsDir | Out-Null
+        }
+        $cursorSkillPath = Join-Path $cursorSkillsDir "SKILL.md"
+        Copy-Item -Force $skillSrc $cursorSkillPath -ErrorAction Stop
+        
+        Write-Host "  Cursor: Directive skill installed at $cursorSkillPath" -ForegroundColor Green
+        
+        if (-not $folderExisted) {
+            Write-Host ""
+            Write-Host "  Next steps:" -ForegroundColor Cyan
+            Write-Host "  1. Verify the skill appears in Cursor Settings > Rules, Skills, Subagents > Skills" -ForegroundColor White
+            Write-Host "  2. Use '/directive' in chat to invoke, or it may auto-invoke when relevant" -ForegroundColor White
+            Write-Host ""
+        }
+    } catch {
+        Write-Host "  Cursor: Failed to install skill" -ForegroundColor Red
+        Write-Host "    Error: $_" -ForegroundColor Gray
     }
 }
 
@@ -144,12 +172,21 @@ if ($choices -contains 3) {
     $windsurfDone = $false
     foreach ($p in $windsurfPaths) {
         $dir = Split-Path -Parent $p
-        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
-        Set-Content -Path $p -Value $directiveBlock
-        $windsurfDone = $true
+        try {
+            if (-not (Test-Path $dir)) { 
+                New-Item -ItemType Directory -Force -Path $dir | Out-Null
+            }
+            Set-Content -Path $p -Value $directiveBlock -ErrorAction Stop
+            $windsurfDone = $true
+        } catch {
+            Write-Host "  Windsurf: Failed to write to $p" -ForegroundColor Yellow
+            Write-Host "    Error: $_" -ForegroundColor Gray
+        }
     }
     if ($windsurfDone) {
         Write-Host "  Windsurf: global rules written (restart Windsurf to apply)." -ForegroundColor Green
+    } else {
+        Write-Host "  Windsurf: Failed to write configuration files" -ForegroundColor Red
     }
 }
 
@@ -158,9 +195,12 @@ if ($choices -contains 4) {
     $vscodeUser = Join-Path $env:APPDATA "Code\User"
     $vscodePromptsDir = Join-Path $vscodeUser "prompts"
     if (Test-Path $vscodeUser) {
-        if (-not (Test-Path $vscodePromptsDir)) { New-Item -ItemType Directory -Force -Path $vscodePromptsDir | Out-Null }
-        $vscodeInstructions = Join-Path $vscodePromptsDir "directive.instructions.md"
-        $vscodeContent = @"
+        try {
+            if (-not (Test-Path $vscodePromptsDir)) { 
+                New-Item -ItemType Directory -Force -Path $vscodePromptsDir | Out-Null
+            }
+            $vscodeInstructions = Join-Path $vscodePromptsDir "directive.instructions.md"
+            $vscodeContent = @"
 ---
 name: 'Directive'
 description: 'Always-on prompt refinement (8 techniques). Apply to every chat.'
@@ -170,8 +210,12 @@ applyTo: '**'
 
 $directiveBlock
 "@
-        Set-Content -Path $vscodeInstructions -Value $vscodeContent
-        Write-Host "  VS Code Copilot: user instructions at $vscodeInstructions (restart VS Code to apply)." -ForegroundColor Green
+            Set-Content -Path $vscodeInstructions -Value $vscodeContent -ErrorAction Stop
+            Write-Host "  VS Code Copilot: user instructions at $vscodeInstructions (restart VS Code to apply)." -ForegroundColor Green
+        } catch {
+            Write-Host "  VS Code: Failed to write instructions file" -ForegroundColor Red
+            Write-Host "    Error: $_" -ForegroundColor Gray
+        }
     } else {
         Write-Host "  VS Code: not detected (install VS Code and run install again)." -ForegroundColor Gray
     }

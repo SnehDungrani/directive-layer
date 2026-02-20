@@ -102,32 +102,47 @@ echo -e "  ${GREEN}Skill: $AGENT_DIR${NC}"
 
 # 2. Antigravity (GEMINI.md) - auto, no paste
 if echo "$choices" | grep -q 1; then
-    mkdir -p "$(dirname "$GEMINI_MD")"
-    if [ ! -f "$GEMINI_MD" ]; then echo "# Global AI Config" > "$GEMINI_MD"; fi
-    if ! grep -q "Directive applied" "$GEMINI_MD"; then
-        echo -e "${YELLOW}Configuring Antigravity (GEMINI.md)...${NC}"
-        {
-            echo ""
-            echo "## Directive - Always-On Prompt Refinement"
-            echo ""
-            echo "**CRITICAL RULE - Apply to EVERY prompt received, no exceptions:**"
-            echo ""
-            echo "Before answering any user prompt, you MUST:"
-            echo ""
-            echo "1. Read the skill file at: $HOME/.agent/skills/directive/SKILL.md"
-            echo "2. Apply all relevant techniques from that skill to refine the prompt internally (do NOT show the analysis, techniques, raw prompt, or refined prompt to the user)"
-            echo "3. Output exactly this one line - nothing more, nothing less:"
-            echo "   \`\`\`"
-            echo "   Directive applied"
-            echo "   ------------------"
-            echo "   \`\`\`"
-            echo "4. Then immediately respond with the answer using the refined prompt - never the raw one"
-            echo ""
-            echo "**This applies to every single prompt in every project. No exceptions.**"
-        } >> "$GEMINI_MD"
-        echo -e "  ${GREEN}Antigravity: configured (restart Antigravity to apply).${NC}"
+    GEMINI_DIR="$(dirname "$GEMINI_MD")"
+    if ! mkdir -p "$GEMINI_DIR" 2>/dev/null; then
+        echo -e "  ${RED}Antigravity: Failed to create directory $GEMINI_DIR${NC}" >&2
+        echo -e "    Check permissions and try again.${NC}" >&2
     else
-        echo -e "  ${GREEN}Antigravity: already configured.${NC}"
+        if [ ! -f "$GEMINI_MD" ]; then
+            if ! echo "# Global AI Config" > "$GEMINI_MD" 2>/dev/null; then
+                echo -e "  ${RED}Antigravity: Failed to create GEMINI.md file${NC}" >&2
+                echo -e "    Check permissions and try again.${NC}" >&2
+            fi
+        fi
+        if ! grep -q "Directive applied" "$GEMINI_MD" 2>/dev/null; then
+            echo -e "${YELLOW}Configuring Antigravity (GEMINI.md)...${NC}"
+            {
+                echo ""
+                echo "## Directive - Always-On Prompt Refinement"
+                echo ""
+                echo "**CRITICAL RULE - Apply to EVERY prompt received, no exceptions:**"
+                echo ""
+                echo "Before answering any user prompt, you MUST:"
+                echo ""
+                echo "1. Read the skill file at: $HOME/.agent/skills/directive/SKILL.md"
+                echo "2. Classify the prompt intent (FACTUAL, ANALYTICAL, GENERATIVE, CODE, MULTI-STEP, EXTERNAL-CONTENT, CONVERSATIONAL) and apply only the relevant techniques from that skill to refine the prompt internally (do NOT show the analysis, techniques, raw prompt, or refined prompt to the user)"
+                echo "3. Output exactly this one line - nothing more, nothing less:"
+                echo "   \`\`\`"
+                echo "   Directive applied"
+                echo "   ------------------"
+                echo "   \`\`\`"
+                echo "4. Then immediately respond with the answer using the refined prompt - never the raw one"
+                echo ""
+                echo "**This applies to every single prompt in every project. No exceptions.**"
+            } >> "$GEMINI_MD" 2>/dev/null || {
+                echo -e "  ${RED}Antigravity: Failed to write configuration${NC}" >&2
+                echo -e "    Check file permissions and try again.${NC}" >&2
+            }
+            if [ $? -eq 0 ]; then
+                echo -e "  ${GREEN}Antigravity: configured (restart Antigravity to apply).${NC}"
+            fi
+        else
+            echo -e "  ${GREEN}Antigravity: already configured.${NC}"
+        fi
     fi
 fi
 
@@ -138,28 +153,43 @@ if echo "$choices" | grep -q 2; then
     if [ -d "$CURSOR_SKILLS_DIR" ]; then
         FOLDER_EXISTED=true
     fi
-    mkdir -p "$CURSOR_SKILLS_DIR"
-    cp -f "$SKILL_SRC" "$CURSOR_SKILLS_DIR/SKILL.md"
-    echo -e "  ${GREEN}Cursor: Directive skill installed at $CURSOR_SKILLS_DIR/SKILL.md${NC}"
-    
-    if [ "$FOLDER_EXISTED" = false ]; then
-        echo ""
-        echo -e "  ${CYAN}Next steps:${NC}"
-        echo -e "     ${WHITE}1. Verify the skill appears in Cursor Settings > Rules, Skills, Subagents > Skills${NC}"
-        echo -e "     ${WHITE}2. Use '/directive' in chat to invoke, or it may auto-invoke when relevant${NC}"
-        echo ""
+    if mkdir -p "$CURSOR_SKILLS_DIR" 2>/dev/null && cp -f "$SKILL_SRC" "$CURSOR_SKILLS_DIR/SKILL.md" 2>/dev/null; then
+        echo -e "  ${GREEN}Cursor: Directive skill installed at $CURSOR_SKILLS_DIR/SKILL.md${NC}"
+        
+        if [ "$FOLDER_EXISTED" = false ]; then
+            echo ""
+            echo -e "  ${CYAN}Next steps:${NC}"
+            echo -e "     ${WHITE}1. Verify the skill appears in Cursor Settings > Rules, Skills, Subagents > Skills${NC}"
+            echo -e "     ${WHITE}2. Use '/directive' in chat to invoke, or it may auto-invoke when relevant${NC}"
+            echo ""
+        fi
+    else
+        echo -e "  ${RED}Cursor: Failed to install skill${NC}" >&2
+        echo -e "    Check permissions and try again.${NC}" >&2
     fi
 fi
 
 # 4. Windsurf - write global rules file so no paste needed
 if echo "$choices" | grep -q 3; then
-    mkdir -p "$HOME/.codeium/windsurf/memories"
-    echo "$DIRECTIVE_BLOCK" > "$HOME/.codeium/windsurf/memories/global_rules.md"
-    if [ -n "${APPDATA:-}" ]; then
-        mkdir -p "$APPDATA/Windsurf/User"
-        echo "$DIRECTIVE_BLOCK" > "$APPDATA/Windsurf/User/global_rules.md"
+    WINDSURF_DONE=false
+    if mkdir -p "$HOME/.codeium/windsurf/memories" 2>/dev/null && echo "$DIRECTIVE_BLOCK" > "$HOME/.codeium/windsurf/memories/global_rules.md" 2>/dev/null; then
+        WINDSURF_DONE=true
+    else
+        echo -e "  ${YELLOW}Windsurf: Failed to write to $HOME/.codeium/windsurf/memories/global_rules.md${NC}" >&2
     fi
-    echo -e "  ${GREEN}Windsurf: global rules written (restart Windsurf to apply).${NC}"
+    if [ -n "${APPDATA:-}" ]; then
+        if mkdir -p "$APPDATA/Windsurf/User" 2>/dev/null && echo "$DIRECTIVE_BLOCK" > "$APPDATA/Windsurf/User/global_rules.md" 2>/dev/null; then
+            WINDSURF_DONE=true
+        else
+            echo -e "  ${YELLOW}Windsurf: Failed to write to $APPDATA/Windsurf/User/global_rules.md${NC}" >&2
+        fi
+    fi
+    if [ "$WINDSURF_DONE" = true ]; then
+        echo -e "  ${GREEN}Windsurf: global rules written (restart Windsurf to apply).${NC}"
+    else
+        echo -e "  ${RED}Windsurf: Failed to write configuration files${NC}" >&2
+        echo -e "    Check permissions and try again.${NC}" >&2
+    fi
 fi
 
 # 4. VS Code + Copilot - user-level instructions (prompts folder)
@@ -171,19 +201,27 @@ if echo "$choices" | grep -q 4; then
     fi
     if [ -d "$VSCODE_USER" ]; then
         VSCODE_PROMPTS="$VSCODE_USER/prompts"
-        mkdir -p "$VSCODE_PROMPTS"
         VSCODE_FILE="$VSCODE_PROMPTS/directive.instructions.md"
-        {
-            echo "---"
-            echo "name: 'Directive'"
-            echo "description: 'Always-on prompt refinement (8 techniques). Apply to every chat.'"
-            echo "applyTo: '**'"
-            echo "---"
-            echo "# Directive - Always-On Prompt Refinement"
-            echo ""
-            echo "$DIRECTIVE_BLOCK"
-        } > "$VSCODE_FILE"
-        echo -e "  ${GREEN}VS Code Copilot: user instructions at $VSCODE_FILE (restart VS Code to apply).${NC}"
+        if mkdir -p "$VSCODE_PROMPTS" 2>/dev/null; then
+            if {
+                echo "---"
+                echo "name: 'Directive'"
+                echo "description: 'Always-on prompt refinement (8 techniques). Apply to every chat.'"
+                echo "applyTo: '**'"
+                echo "---"
+                echo "# Directive - Always-On Prompt Refinement"
+                echo ""
+                echo "$DIRECTIVE_BLOCK"
+            } > "$VSCODE_FILE" 2>/dev/null; then
+                echo -e "  ${GREEN}VS Code Copilot: user instructions at $VSCODE_FILE (restart VS Code to apply).${NC}"
+            else
+                echo -e "  ${RED}VS Code: Failed to write instructions file${NC}" >&2
+                echo -e "    Check permissions and try again.${NC}" >&2
+            fi
+        else
+            echo -e "  ${RED}VS Code: Failed to create prompts directory${NC}" >&2
+            echo -e "    Check permissions and try again.${NC}" >&2
+        fi
     else
         echo -e "  ${GRAY}VS Code: not detected (install VS Code and run install again).${NC}"
     fi
